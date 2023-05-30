@@ -1,8 +1,8 @@
 #
 # Client code for Update Agent
-# Copyright (c) 1999-2002 Red Hat, Inc.  Distributed under GPL.
+# Copyright The dnf Project Authors
+# SPDX-License-Identifier: GPL-2.0-or-later
 #
-#         Adrian Likins <alikins@redhat.com>
 # Some Edits by Seth Vidal <skvidal@phy.duke.edu>
 #
 # a couple of classes wrapping up transactions so that we
