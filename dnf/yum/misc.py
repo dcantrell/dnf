@@ -11,6 +11,7 @@ from __future__ import print_function, absolute_import
 from __future__ import unicode_literals
 from dnf.pycomp import base64_decodebytes, basestring, unicode
 from stat import *
+import libdnf.repo
 import libdnf.utils
 import dnf.const
 import dnf.crypto
@@ -25,6 +26,7 @@ import pwd
 import re
 import shutil
 import tempfile
+import warnings
 
 _default_checksums = ['sha256']
 
@@ -146,38 +148,28 @@ def keyInstalled(ts, keyid, timestamp):
 
 
 def import_key_to_pubring(rawkey, keyid, gpgdir=None, make_ro_copy=True):
+    # :deprecated, undocumented
+    """ It is used internally by deprecated function `import_repo_keys`. """
+    msg = "Function `import_key_to_pubring` is deprecated. Will be removed after 2023-10-30."
+    warnings.warn(msg, DeprecationWarning, stacklevel=2)
+
     if not os.path.exists(gpgdir):
         os.makedirs(gpgdir)
 
-    with dnf.crypto.pubring_dir(gpgdir), dnf.crypto.Context() as ctx:
-        # import the key
-        with open(os.path.join(gpgdir, 'gpg.conf'), 'wb') as fp:
-            fp.write(b'')
-        ctx.op_import(rawkey)
+    # import the key
+    libdnf.repo.importKeyToPubring(str(rawkey, 'utf-8'), gpgdir)
 
-        if make_ro_copy:
+    if make_ro_copy:
+        rodir = gpgdir + '-ro'
+        if not os.path.exists(rodir):
+            os.makedirs(rodir, mode=0o755)
+            for f in glob.glob(gpgdir + '/*'):
+                basename = os.path.basename(f)
+                ro_f = rodir + '/' + basename
+                shutil.copy(f, ro_f)
+                os.chmod(ro_f, 0o755)
 
-            rodir = gpgdir + '-ro'
-            if not os.path.exists(rodir):
-                os.makedirs(rodir, mode=0o755)
-                for f in glob.glob(gpgdir + '/*'):
-                    basename = os.path.basename(f)
-                    ro_f = rodir + '/' + basename
-                    shutil.copy(f, ro_f)
-                    os.chmod(ro_f, 0o755)
-                # yes it is this stupid, why do you ask?
-                opts = """lock-never
-    no-auto-check-trustdb
-    trust-model direct
-    no-expensive-trust-checks
-    no-permission-warning
-    preserve-permissions
-    """
-                with open(os.path.join(rodir, 'gpg.conf'), 'w', 0o755) as fp:
-                    fp.write(opts)
-
-
-        return True
+    return True
 
 
 def getCacheDir():

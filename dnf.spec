@@ -2,7 +2,7 @@
 %define __cmake_in_source_build 1
 
 # default dependencies
-%global hawkey_version 0.66.0
+%global hawkey_version 0.71.1
 %global libcomps_version 0.1.8
 %global libmodulemd_version 2.9.3
 %global rpm_version 4.14.0
@@ -11,6 +11,8 @@
 %global conflicts_dnf_plugins_core_version 4.0.26
 %global conflicts_dnf_plugins_extras_version 4.0.4
 %global conflicts_dnfdaemon_version 0.3.19
+
+%bcond dnf5_obsoletes_dnf %[0%{?fedora} > 40 || 0%{?rhel} > 10]
 
 # override dependencies for rhel 7
 %if 0%{?rhel} == 7
@@ -65,7 +67,7 @@
 It supports RPMs, modules and comps groups & environments.
 
 Name:           dnf
-Version:        4.16.2
+Version:        4.17.1
 Release:        1%{?dist}
 Summary:        %{pkg_summary}
 # For a breakdown of the licensing, see PACKAGE-LICENSING
@@ -83,6 +85,8 @@ Requires:       python3-%{name} = %{version}-%{release}
 %if 0%{?rhel} && 0%{?rhel} <= 7
 Requires:       python-dbus
 Requires:       %{_bindir}/sqlite3
+%elif 0%{?fedora}
+Recommends:     (%{_bindir}/sqlite3 if (bash-completion and python3-dnf-plugins-core))
 %else
 Recommends:     (python3-dbus if NetworkManager)
 %endif
@@ -95,7 +99,7 @@ Conflicts:      python3-dnf-plugins-extras-common < %{conflicts_dnf_plugins_extr
 %package data
 Summary:        Common data and configuration files for DNF
 Requires:       libreport-filesystem
-%if 0%{?fedora} > 40 || 0%{?rhel} > 10
+%if %{with dnf5_obsoletes_dnf}
 Requires:       /etc/dnf/dnf.conf
 %endif
 Obsoletes:      %{name}-conf <= %{version}-%{release}
@@ -128,8 +132,6 @@ BuildRequires:  python3-libcomps >= %{libcomps_version}
 BuildRequires:  python3-libdnf
 BuildRequires:  libmodulemd >= %{libmodulemd_version}
 Requires:       libmodulemd >= %{libmodulemd_version}
-BuildRequires:  python3-gpg
-Requires:       python3-gpg
 Requires:       %{name}-data = %{version}-%{release}
 %if 0%{?fedora}
 Recommends:     deltarpm
@@ -235,7 +237,7 @@ ln -sr  %{buildroot}%{confdir}/protected.d %{buildroot}%{_sysconfdir}/yum/protec
 ln -sr  %{buildroot}%{confdir}/vars %{buildroot}%{_sysconfdir}/yum/vars
 %endif
 
-%if 0%{?fedora} > 40 || 0%{?rhel} > 10
+%if %{with dnf5_obsoletes_dnf}
 rm %{buildroot}%{confdir}/%{name}.conf
 %endif
 
@@ -290,22 +292,16 @@ popd
 %dir %{confdir}/modules.d
 %dir %{confdir}/modules.defaults.d
 %dir %{pluginconfpath}
-%if ! (0%{?fedora} > 40 || 0%{?rhel} > 10)
+%if %{without dnf5_obsoletes_dnf}
 %dir %{confdir}/protected.d
 %dir %{confdir}/vars
 %endif
 %dir %{confdir}/aliases.d
 %exclude %{confdir}/aliases.d/zypper.conf
-%if ! (0%{?fedora} > 40 || 0%{?rhel} > 10)
+%if %{without dnf5_obsoletes_dnf}
+# If DNF5 does not obsolete DNF ownership of dnf.conf should be DNF's
 %config(noreplace) %{confdir}/%{name}.conf
 %endif
-
-# No longer using `noreplace` here. Older versions of DNF 4 marked `dnf` as a
-# protected package, but since Fedora 39, DNF needs to be able to update itself
-# to DNF 5, so we need to replace the old /etc/dnf/protected.d/dnf.conf.
-%config %{confdir}/protected.d/%{name}.conf
-# Protect python3-dnf instead, which does not conflict with DNF 5
-%config(noreplace) %{confdir}/protected.d/python3-%{name}.conf
 %config(noreplace) %{_sysconfdir}/logrotate.d/%{name}
 %ghost %attr(644,-,-) %{_localstatedir}/log/hawkey.log
 %ghost %attr(644,-,-) %{_localstatedir}/log/%{name}.log
@@ -331,10 +327,16 @@ popd
 %{_mandir}/man5/yum.conf.5.*
 %{_mandir}/man8/yum-shell.8*
 %{_mandir}/man1/yum-aliases.1*
+%if %{without dnf5_obsoletes_dnf}
+# If DNF5 does not obsolete DNF, protected.d/yum.conf should be owned by DNF
+%config(noreplace) %{confdir}/protected.d/yum.conf
+%else
+# If DNF5 obsoletes DNF
 # No longer using `noreplace` here. Older versions of DNF 4 marked `yum` as a
 # protected package, but since Fedora 39, DNF needs to be able to update itself
 # to DNF 5, so we need to replace the old /etc/dnf/protected.d/yum.conf.
 %config %{confdir}/protected.d/yum.conf
+%endif
 %else
 %exclude %{_sysconfdir}/yum.conf
 %exclude %{_sysconfdir}/yum/pluginconf.d
@@ -380,6 +382,14 @@ popd
 %{python3_sitelib}/%{name}/automatic/
 
 %changelog
+* Fri Sep 01 2023 Jan Kolarik <jkolarik@redhat.com> - 4.17.0-1
+- crypto: Use libdnf crypto API instead of using GnuPG/GpgME
+- Reprotect dnf, unprotect python3-dnf (RhBug:2221905)
+- Block signals during RPM transaction processing (RhBug:2133398)
+- Fix bash completion due to sqlite changes (RhBug:2232052)
+- automatic: allow use of STARTTLS/TLS
+- automatic: use email_port specified in config
+
 * Thu Jul 27 2023 Nicola Sella <nsella@redhat.com> - 4.16.2-1
 - depend on /etc/dnf/dnf.conf, not libdnf5
 - Update repo metadata cache pattern to include zstd

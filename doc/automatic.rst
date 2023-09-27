@@ -165,6 +165,16 @@ The email emitter configuration.
 
     Hostname of the SMTP server used to send the message.
 
+``email_port``
+    integer, default: ``25``
+
+    Port number to connect to at the SMTP server.
+
+``email_tls``
+    either one of ``no``, ``yes``, ``starttls``, default: ``no``
+
+    Whether to use TLS, STARTTLS or no encryption to connect to the SMTP server.
+
 ``email_to``
     list, default: ``root``
 
